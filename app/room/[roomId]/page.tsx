@@ -1,7 +1,9 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
 import { useRef, useState } from "react";
+import { client } from "@/lib/client";
 
 function formatTimeRemaining(seconds: number) {
   const mins = Math.floor(seconds / 60);
@@ -20,6 +22,13 @@ const Page = () => {
 
   const [copyStatus, setCopyStatus] = useState("COPY");
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
+
+const {mutate: sendMessage, isPending} = useMutation({
+    mutationFn: async ({text}: { text: string}) => {
+      await client.messages.post({ sender: username, text})
+    }
+    
+})
 
   const copyLink = () => {
     const url = window.location.href;
