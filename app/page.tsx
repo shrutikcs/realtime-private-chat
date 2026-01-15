@@ -1,5 +1,5 @@
 "use client";
-import { client } from "@/lib/client";
+import { client } from "@/lib/server";
 import { useMutation } from "@tanstack/react-query";
 import { nanoid } from "nanoid";
 import { useEffect, useState } from "react";
@@ -30,7 +30,7 @@ export default function Home() {
 
   const { mutate: createRoom } = useMutation({
     mutationFn: async () => {
-      const res = await client.room.create.post();
+      const res = await client.api.room.create.post();
     },
   });
 
