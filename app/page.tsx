@@ -1,34 +1,24 @@
 "use client";
+import { useUsername } from "@/hooks/use-username";
 import { client } from "@/lib/client";
 import { useMutation } from "@tanstack/react-query";
-import { nanoid } from "nanoid";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 
-const ANIMALS = ["wolf", "lion", "shark", "owl"];
-const STORAGE_KEY = "chat_username";
-
-const generateUsername = () => {
-  const word = Math.floor(Math.random() * ANIMALS.length);
-  return `anonymous-${word}-${nanoid(5)}`;
+const Page = () => {
+  return (
+    <Suspense>
+      <Lobby />
+    </Suspense>
+  );
 };
-
-export default function Home() {
-  const [username, setUsername] = useState("");
+function Lobby() {
+  const { username } = useUsername();
   const router = useRouter();
-  useEffect(() => {
-    const main = () => {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        setUsername(stored);
-        return;
-      }
-      const generated = generateUsername();
-      localStorage.setItem(STORAGE_KEY, generated);
-      setUsername(generated);
-    };
-    main();
-  }, []);
+
+  const searchParams = useSearchParams();
+  const wasDestroyed = searchParams.get("destroyed") === " true";
+  const error = searchParams.get("error");
 
   const { mutate: createRoom } = useMutation({
     mutationFn: async () => {
@@ -43,9 +33,33 @@ export default function Home() {
   return (
     <main className="main flex flex-col items-center justify-center p-4 min-h-screen">
       <div className="w-full max-w-md space-y-8">
+        {wasDestroyed && (
+          <div className="bg-red-950/50 border border-red-900 p-4 text-center">
+            <p className="text-red-500 text-sm font-bold">ROOM DESTROYED</p>
+            <p className="text-zinc-500 text-xs mt-1">
+              All messages were permanently deleted.
+            </p>
+          </div>
+        )}
+        {error === "room-not-found" && (
+          <div className="bg-red-950/50 border border-red-900 p-4 text-center">
+            <p className="text-red-500 text-sm font-bold">ROOM NOT FOUND</p>
+            <p className="text-zinc-500 text-xs mt-1">
+              This room may have expired or never existed.
+            </p>
+          </div>
+        )}
+        {error === "room-full" && (
+          <div className="bg-red-950/50 border border-red-900 p-4 text-center">
+            <p className="text-red-500 text-sm font-bold">ROOM FULL</p>
+            <p className="text-zinc-500 text-xs mt-1">
+              This room is at maximum capacity.
+            </p>
+          </div>
+        )}
         <div className="text-center space-y-2">
           <h1 className="text-2xl font-bold tracking-tight text-green-500">
-            {">"}secure-chat
+            {">"}vanish
           </h1>
           <p className="text-zinc-500 text-sm">
             A private, self-destructing chat room.
@@ -72,6 +86,15 @@ export default function Home() {
           </div>
         </div>
       </div>
+      <footer className="fixed bottom-0 p-4 text-zinc-500 text-xs">
+        
+        <p className=" mt-2">
+          Messages self-destruct faster than your motivation on a Monday  ©{" "}
+          {new Date().getFullYear()} Built by someone who values privacy.{" "}
+        </p>
+      </footer>
     </main>
   );
 }
+
+export default Page;

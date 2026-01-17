@@ -1,9 +1,12 @@
 "use client";
 
-import { useMutation } from "@tanstack/react-query";
-import { useParams } from "next/navigation";
-import { useRef, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useParams, useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { client } from "@/lib/client";
+import { useUsername } from "@/hooks/use-username";
+import { format } from "date-fns";
+import { useRealtime } from "@/lib/realtime-client";
 
 function formatTimeRemaining(seconds: number) {
   const mins = Math.floor(seconds / 60);
@@ -17,18 +20,89 @@ const Page = () => {
   const params = useParams();
   const roomId = params.roomId as string;
 
-  const [input, setInput] = useState("")
-  const inputRef = useRef<HTMLInputElement>(null)
+  const router = useRouter();
+  const { username } = useUsername();
+  const [input, setInput] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const [copyStatus, setCopyStatus] = useState("COPY");
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
 
-const {mutate: sendMessage, isPending} = useMutation({
-    mutationFn: async ({text}: { text: string}) => {
-      await client.messages.post({ sender: username, text})
+  const { data: ttlData } = useQuery({
+    queryKey: ["ttl", roomId],
+    queryFn: async () => {
+      const res = await client.api.room.ttl.get({
+        query: { roomId },
+      });
+      return res.data;
+    },
+  });
+
+  useEffect(() => {
+    if(ttlData?.ttl !== undefined){
+      setTimeRemaining(ttlData.ttl)
     }
-    
-})
+  }
+  ,[ttlData])
+
+  useEffect(() => {
+    if(timeRemaining === null || timeRemaining < 0) return
+    if ( timeRemaining === 0){
+      router.push("/?destroyed=true")
+      return
+    }
+    const interval = setInterval(() => {
+      setTimeRemaining((prev) => {
+        if (prev === null || prev <=1){
+          clearInterval(interval)
+          return 0
+        }
+        return prev-1
+      }
+      )
+    }, 1000);
+    return () => clearInterval(interval)
+  }
+  ,[timeRemaining, router])
+
+  const { data: messages, refetch } = useQuery({
+    queryKey: ["messages", roomId],
+    queryFn: async () => {
+      const res = await client.api.messages.get({
+        query: { roomId },
+      });
+      return res.data;
+    },
+  });
+
+  const { mutate: sendMessage, isPending } = useMutation({
+    mutationFn: async ({ text }: { text: string }) => {
+      await client.api.messages.post(
+        { sender: username, text },
+        { query: { roomId } },
+      );
+      setInput("");
+    },
+  });
+
+  useRealtime({
+    channels: [roomId],
+    events: ["chat.message", "chat.destroy"],
+    onData: ({ event }) => {
+      if (event === "chat.message") {
+        refetch();
+      }
+      if (event === "chat.destroy") {
+        router.push("/?destroyed=true");
+      }
+    },
+  });
+
+  const { mutate: destroyRoom} = useMutation({
+    mutationFn: async()=>{
+      await client.api.room.delete(null, { query: {roomId}})
+    }
+  })
 
   const copyLink = () => {
     const url = window.location.href;
@@ -96,11 +170,6 @@ const {mutate: sendMessage, isPending} = useMutation({
             </p>
           </div>
         )}
-
-
-
-
-
 
         {messages?.messages.map((msg) => (
           <div key={msg.id} className="flex flex-col items-start">

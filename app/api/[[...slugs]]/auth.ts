@@ -1,5 +1,4 @@
 import { redis } from "@/lib/redis";
-import { error } from "console";
 import Elysia from "elysia";
 
 class AuthError extends Error {
